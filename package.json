@@ -1,0 +1,38 @@
+{
+  "name": "pebble-sisyphus-watchface",
+  "author": "Tony Atkins",
+  "version": "1.0.0",
+  "keywords": ["pebble-app"],
+  "private": true,
+  "dependencies": {},
+  "pebble": {
+    "displayName": "Sisyphus",
+    "uuid": "f4f746a1-ff24-4be8-92f6-3f2bf4b19c11",
+    "sdkVersion": "3",
+    "enableMultiJS": true,
+    "targetPlatforms": [
+      "aplite",
+      "basalt",
+      "chalk",
+      "diorite"
+    ],
+    "watchapp": {
+      "watchface": true
+    },
+    "messageKeys": [],
+    "resources": {
+      "media": [
+        {
+          "type": "raw",
+          "name": "MOUNTAIN",
+          "file": "images/pdc/mountain.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "BACKGROUND",
+          "file": "images/pdc/background.pdc"
+        }
+      ]
+    }
+  }
+}
