@@ -24,13 +24,13 @@
       "media": [
         {
           "type": "raw",
-          "name": "MOUNTAIN",
-          "file": "images/pdc/mountain.pdc"
+          "name": "CLOUD_ROLL",
+          "file": "images/pdc/cloud-roll.pdc"
         },
         {
           "type": "raw",
-          "name": "BACKGROUND",
-          "file": "images/pdc/background.pdc"
+          "name": "SKY_ROLL",
+          "file": "images/pdc/sky-roll.pdc"
         }
       ]
     }
