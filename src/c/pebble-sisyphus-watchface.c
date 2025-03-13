@@ -61,8 +61,10 @@ static const GPathInfo MOUNTAIN_PATH_INFO = {
     { 120, 163}, { 121, 166}, { 122, 167}, { 123, 169}, { 124, 171},
     { 125, 174}, { 126, 178}, { 127, 181}, { 128, 183}, { 129, 184},
 
-    // Bottom right corner
-    {129, 190}, {148, 190}, {148, 255}
+    // Bottom right corner, extended for compatibility with round watches.
+    // {129, 190}, {148, 190}, {148, 255}
+    {129, 190}, {250, 190}, {250, 255}
+
   }
 };
 
