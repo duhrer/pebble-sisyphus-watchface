@@ -1,6 +1,6 @@
 #include <pebble.h>
 
-#define SIZZLE_REEL 1
+#define SIZZLE_REEL 0
 
 static Window *s_window;
 
@@ -168,8 +168,6 @@ static void update_time(bool force_update) {
 
   // We could use time, but really it only matters if we match the background, so
   // we use sky_x_offset, which also works for the "sizzle reel".
-  // TODO: Switches to black too early on B/W devices
-  // TODO: Switches to white too late on colour ddevices
   if (is_day()) {
     text_layer_set_text_color(s_time_layer, GColorBlack);
   }
@@ -279,6 +277,7 @@ static void variable_speed_animation_handler () {
     }
     else {
       subframe = 0;
+      app_timer_register(1000, variable_speed_animation_handler, NULL);
     }
 
     layer_mark_dirty(s_boulder_layer);
@@ -293,6 +292,10 @@ static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
 
   update_time(false);
   update_date(false);
+
+  // In previous efforks, the animation handler would stall out.  If that crops
+  // up again, add a heartbeat and relaunch it if it hasn't run recently.
+  // app_timer_register(0, variable_speed_animation_handler, NULL);
 
   if (SIZZLE_REEL) {
     // Needs to be two minutes and one second so that things progress second by second.
@@ -392,7 +395,8 @@ static void prv_init(void) {
 
   tick_timer_service_subscribe(SECOND_UNIT, tick_handler);
 
-  // We don't use the tick timer for the variable speed "roll" and "fall" animations.
+  // Start the separate timing mechanism for the variable speed "roll" and
+  // "fall" boulder animations.
   app_timer_register(0, variable_speed_animation_handler, NULL);
 }
 
