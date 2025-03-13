@@ -1,6 +1,6 @@
 #include <pebble.h>
 
-#define SIZZLE_REEL 0
+#define SIZZLE_REEL 1
 
 static Window *s_window;
 
@@ -70,31 +70,41 @@ static int ridge_y_by_second[110] = {
   189,185,182,179,176,175,173,170,167,164,162,160,159,157,154,151,149,148,147,145,143,140,138,137,136,135,134,131,129,128,128,127,126,124,122,121,121,121,120,119,117,116,116,116,116,115,114,113,113,113,114,113,112,111,111,112,113,113,112,112,112,113,114,115,114,114,114,115,117,118,118,118,118,119,121,123,124,124,124,125,127,130,131,132,132,134,136,138,140,141,142,143,146,148,151,153,154,155,157,160,163,166,167,169,171,174,178,181,183,184
 };
 
+// The sky offsets are negative, hence all the comparisons are flipped.
+#if defined(PBL_COLOR)
+  #define DAY_START_SKY_OFFSET -400
+  #define DAY_END_SKY_OFFSET -1040
+#elif defined(PBL_BW)
+  #define DAY_START_SKY_OFFSET -385
+  #define DAY_END_SKY_OFFSET -950
+#endif
+
+static bool is_day() {
+  return ((sky_x_offset < DAY_START_SKY_OFFSET) && (sky_x_offset > DAY_END_SKY_OFFSET));
+}
+
 static void tile_image_on_layer(Layer *layer, GContext *ctx, GDrawCommandImage *image, int base_x_offset) {
   // APP_LOG(APP_LOG_LEVEL_INFO, "base_x: %d\n", base_x_offset);
 
   GRect layer_rect = layer_get_bounds(layer);
   GSize image_size = gdraw_command_image_get_bounds_size(image);
 
-  // Test the limits of tiling offsets.
-  // GPoint primary_origin = GPoint((-0.7 * image_size.w), 0);
-  // gdraw_command_image_draw(ctx, image, primary_origin);
+  bool primary_is_onscreen = (base_x_offset >= 0 && (base_x_offset < layer_rect.size.w) ) || ((base_x_offset < 0) && (base_x_offset + image_size.w) > 0);
 
-  if (base_x_offset < layer_rect.size.w) {
-    // APP_LOG(APP_LOG_LEVEL_INFO, "Drawing Primary Image at %d", base_x_offset);
+  if (primary_is_onscreen) {
+      // APP_LOG(APP_LOG_LEVEL_INFO, "Drawing Primary Image at %d", base_x_offset);
 
-    GPoint primary_origin = GPoint(base_x_offset, 0);
-    gdraw_command_image_draw(ctx, image, primary_origin);
+      GPoint primary_origin = GPoint(base_x_offset, 0);
+      gdraw_command_image_draw(ctx, image, primary_origin);
   }
 
-  if (base_x_offset > 0) {
+  // TODO: This logic will need to be updated if we ever work with loops smaller than the screen.
+  if (base_x_offset != 0) {
     int tile_offset = image_size.w;
-    bool firstTileIsOnRight = base_x_offset > (layer_rect.size.w - image_size.w);
 
-    int secondary_x = firstTileIsOnRight ?  base_x_offset - tile_offset : base_x_offset + tile_offset;
+    int secondary_x = base_x_offset > 0 ? (base_x_offset - image_size.w) - 2: (base_x_offset + image_size.w) - 2;
 
     // APP_LOG(APP_LOG_LEVEL_INFO, "Drawing Secondary Image at %d", secondary_x);
-
     GPoint secondary_origin = GPoint(secondary_x, 0);
     gdraw_command_image_draw(ctx, image, secondary_origin);
   }
@@ -121,8 +131,20 @@ int base_boulder_y_offset = -60;
 
 static void update_boulder(Layer *layer, GContext *ctx) {
     int boulder_y_offset = base_boulder_y_offset + ridge_y_by_second[boulder_position_index];
-    graphics_context_set_fill_color(ctx, GColorRed);
+    #if defined(PBL_COLOR)
+      graphics_context_set_fill_color(ctx, GColorRed);
+    #elif defined(PBL_BW)
+      graphics_context_set_fill_color(ctx, GColorLightGray);
+    #endif
+
     graphics_fill_circle(ctx, GPoint(base_boulder_x_offset + boulder_position_index, boulder_y_offset), 6);
+
+    #if defined(PBL_BW)
+      GColor stroke_colour = is_day() ? GColorBlack : GColorWhite;
+      graphics_context_set_stroke_color(ctx, stroke_colour);
+      graphics_draw_circle(ctx, GPoint(base_boulder_x_offset + boulder_position_index, boulder_y_offset), 6);
+    #endif
+
 }
 
 // https://github.com/google/pebble/blob/4051c5bb97377f1215bbd26094c1a157532c55fe/src/libc/include/sys/types.h#L27
@@ -144,7 +166,11 @@ static struct tm *get_time() {
 static void update_time(bool force_update) {
   struct tm *t = get_time();
 
-  if (t->tm_hour > 6 && (t->tm_hour < 17 || (t->tm_hour < 18 && t->tm_min >= 30))) {
+  // We could use time, but really it only matters if we match the background, so
+  // we use sky_x_offset, which also works for the "sizzle reel".
+  // TODO: Switches to black too early on B/W devices
+  // TODO: Switches to white too late on colour ddevices
+  if (is_day()) {
     text_layer_set_text_color(s_time_layer, GColorBlack);
   }
   else {
@@ -176,6 +202,10 @@ static void update_date(bool force_update) {
   }
 }
 
+// As this is a large image, we need a more precise percentage to avoid
+// "jumping" when we round to an integer.
+#define LOOP_PROGRESS_PRECISION 10000
+
 static void update_loop_offsets() {
   // I need to work with the raw time rather than the tick time to get the
   // seconds since the epoch.
@@ -189,12 +219,13 @@ static void update_loop_offsets() {
   }
 
   int seconds_today = (intmax_t)now % SECONDS_PER_DAY;
-  int percent_day_complete = (seconds_today * 100 / SECONDS_PER_DAY);
+
+  int percent_day_complete = (seconds_today * LOOP_PROGRESS_PRECISION / SECONDS_PER_DAY);
 
   // APP_LOG(APP_LOG_LEVEL_INFO, " %d percent of the day is complete.\n", percent_day_complete);
 
   // Animate based on how far we are in the entire day, even if we just started up.
-  int new_sky_x_offset = -1 * (percent_day_complete * 1400)/100;
+  int new_sky_x_offset = -1 * (percent_day_complete * 1400) / LOOP_PROGRESS_PRECISION;
   // APP_LOG(APP_LOG_LEVEL_INFO, "New sky offset is %d\n", new_sky_x_offset);
 
   if (new_sky_x_offset != sky_x_offset) {
@@ -207,8 +238,8 @@ static void update_loop_offsets() {
   int seconds_since_last_even_five_minutes = seconds_today % 120;
 
   // Loop every two minutes.
-  int percent_complete = (seconds_since_last_even_five_minutes * 100 / 120);
-  int new_clouds_x_offset =  740 - ((percent_complete * 740)/100);
+  int percent_complete = (seconds_since_last_even_five_minutes * LOOP_PROGRESS_PRECISION / 120);
+  int new_clouds_x_offset =  740 - ((percent_complete * 740) / LOOP_PROGRESS_PRECISION);
 
   if (new_clouds_x_offset != clouds_x_offset) {
     // APP_LOG(APP_LOG_LEVEL_INFO, "Redrawing clouds at offset of %d.\n", new_clouds_x_offset);
